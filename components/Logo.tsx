@@ -10,7 +10,7 @@ export const Logo: React.FC<LogoProps> = ({ className = "h-12", variant = 'full'
     <div className={`flex items-center gap-3 ${className}`}>
       {/* Image Logo */}
       <img 
-        src="/logo.png" 
+        src="/logo.jpeg" 
         alt="Logo H" 
         className="h-full w-auto object-contain"
         onError={(e) => {
