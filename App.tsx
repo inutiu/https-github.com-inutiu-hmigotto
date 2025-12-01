@@ -117,6 +117,7 @@ const PublicSite = ({
   const [isTalentModalOpen, setIsTalentModalOpen] = useState(false);
   const [isLinkedInToolOpen, setIsLinkedInToolOpen] = useState(false);
   const [contactStatus, setContactStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
+  const [profileImgError, setProfileImgError] = useState(false);
 
   // Contact Form State
   const [contactForm, setContactForm] = useState({ name: '', email: '', message: '' });
@@ -410,7 +411,13 @@ const PublicSite = ({
           <div className="md:w-1/2 relative">
             <div className="relative z-10 bg-brand-green rounded-2xl p-2 rotate-3 shadow-2xl max-w-md mx-auto">
                <div className="bg-white rounded-xl overflow-hidden aspect-[4/5] relative">
-                  <img src="https://picsum.photos/800/1000?grayscale" alt="Hevilin Migotto" className="object-cover w-full h-full opacity-90 hover:scale-105 transition-transform duration-700" />
+                  {/* Updated Image Source with Fallback Logic */}
+                  <img 
+                    src={!profileImgError ? "/hevilin.jpg" : "https://picsum.photos/800/1000?grayscale"} 
+                    alt="Hevilin Migotto" 
+                    className="object-cover w-full h-full opacity-90 hover:scale-105 transition-transform duration-700" 
+                    onError={() => setProfileImgError(true)}
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-brand-green/80 to-transparent flex items-end p-8">
                     <div className="text-white"><p className="font-display font-bold text-xl">Hevilin Migotto</p><p className="text-brand-yellow text-sm">Branding & Pessoas</p></div>
                   </div>
