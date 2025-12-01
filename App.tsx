@@ -12,6 +12,7 @@ import { Button } from './components/Button';
 import { auth, db } from './firebase';
 import { 
   signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
   signOut, 
   onAuthStateChanged, 
   User
@@ -84,6 +85,7 @@ const getErrorMessage = (error: any) => {
   if (error.code === 'auth/user-not-found') return 'Usuário não encontrado.';
   if (error.code === 'auth/wrong-password') return 'Senha incorreta.';
   if (error.code === 'auth/invalid-api-key') return 'Erro de configuração da API Key.';
+  if (error.code === 'auth/network-request-failed') return 'Erro de conexão. Verifique sua internet.';
   return error.message;
 };
 
@@ -713,6 +715,10 @@ const App: React.FC = () => {
     if (auth) {
       const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
         setUser(currentUser);
+        // If user is logged in, automatically go to admin view
+        if (currentUser) {
+            setView('admin');
+        }
       });
       return () => unsubscribe();
     }
@@ -770,19 +776,31 @@ const App: React.FC = () => {
     const email = target.email.value;
     const password = target.password.value;
     
-    // Bypass for simple testing if DB is down or special admin
-    if (email === 'admin@hevilin.com' && password === 'admin' && !auth) {
-       setUser({ email: 'admin@hevilin.com' } as User);
-       setView('admin');
-       return;
+    if (!auth) {
+        alert("Firebase não está configurado. Não é possível fazer login.");
+        return;
     }
 
     try {
-      if (!auth) throw new Error("Firebase não configurado.");
       await signInWithEmailAndPassword(auth, email, password);
-      setView('admin');
+      // View will change via onAuthStateChanged effect
     } catch (error: any) {
-      alert(getErrorMessage(error));
+      
+      // Auto-register Admin if not found (First time setup convenience)
+      if (error.code === 'auth/user-not-found' && email === 'admin@hevilin.com') {
+          const confirmCreate = window.confirm("Usuário Admin não encontrado no Firebase. Deseja criar esta conta de administrador agora?");
+          if (confirmCreate) {
+              try {
+                  await createUserWithEmailAndPassword(auth, email, password);
+                  alert("Conta de Administrador criada com sucesso! Você está logado.");
+                  return;
+              } catch (createError: any) {
+                  alert("Erro ao criar conta: " + getErrorMessage(createError));
+              }
+          }
+      } else {
+          alert(getErrorMessage(error));
+      }
     }
   };
 
@@ -839,7 +857,7 @@ const App: React.FC = () => {
             <form onSubmit={handleLogin} className="space-y-4">
                <div>
                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                 <input name="email" type="email" required className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-green outline-none" />
+                 <input name="email" type="email" required className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-green outline-none" placeholder="admin@hevilin.com" />
                </div>
                <div>
                  <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
@@ -849,6 +867,12 @@ const App: React.FC = () => {
             </form>
             <div className="mt-6 text-center">
                <button onClick={() => setView('public')} className="text-sm text-gray-500 hover:text-brand-green">Voltar ao site</button>
+            </div>
+            
+            <div className="mt-8 pt-6 border-t border-gray-100 text-xs text-gray-400 text-center">
+                <p>Credenciais sugeridas para primeiro acesso:</p>
+                <p>Email: admin@hevilin.com</p>
+                <p>Senha: admin</p>
             </div>
          </div>
        </div>
