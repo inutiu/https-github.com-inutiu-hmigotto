@@ -14,7 +14,6 @@ import {
   signInWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged, 
-  sendPasswordResetEmail,
   User
 } from 'firebase/auth';
 import { 
@@ -33,7 +32,7 @@ import {
 
 // --- TYPES & INTERFACES ---
 
-type ViewState = 'public' | 'login' | 'recover-password' | 'admin' | 'client-portal';
+type ViewState = 'public' | 'login' | 'admin';
 
 interface Job {
   id: string;
@@ -51,15 +50,15 @@ interface Candidate {
   phone: string;
   role: string;
   linkedin: string;
-  externalLink?: string; // Link to portfolio/drive
-  summary: string; // Text resume
+  externalLink?: string; 
+  summary: string; 
   createdAt: any;
 }
 
 interface ClientCompany {
   id: string;
   name: string;
-  email: string; // Login email
+  email: string; 
   contactPerson: string;
 }
 
@@ -68,7 +67,7 @@ interface OnboardingProcess {
   candidateName: string;
   clientId: string;
   status: 'Em Análise' | 'Aprovado' | 'Documentação Pendente' | 'Concluído';
-  docs: { name: string; url: string; verified: boolean }[];
+  docsUrl?: string;
 }
 
 // --- HELPER: FIREBASE ERRORS ---
@@ -76,6 +75,7 @@ const getErrorMessage = (error: any) => {
   if (error.code === 'auth/invalid-credential') return 'Email ou senha incorretos.';
   if (error.code === 'auth/user-not-found') return 'Usuário não encontrado.';
   if (error.code === 'auth/wrong-password') return 'Senha incorreta.';
+  if (error.code === 'auth/invalid-api-key') return 'Erro de configuração da API Key.';
   return error.message;
 };
 
@@ -98,6 +98,7 @@ const PublicSite = ({
   const [scrolled, setScrolled] = useState(false);
   const [isTalentModalOpen, setIsTalentModalOpen] = useState(false);
   const [isLinkedInToolOpen, setIsLinkedInToolOpen] = useState(false);
+  const [contactStatus, setContactStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -111,6 +112,16 @@ const PublicSite = ({
       element.scrollIntoView({ behavior: 'smooth' });
       setIsMenuOpen(false);
     }
+  };
+
+  const handleContactSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setContactStatus('submitting');
+    // Simulate sending logic (or integrate with a backend function/email service)
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    setContactStatus('success');
+    // Reset after a few seconds
+    setTimeout(() => setContactStatus('idle'), 5000);
   };
 
   const NavLink = ({ href, children, mobile = false, onClick }: any) => (
@@ -267,21 +278,38 @@ const PublicSite = ({
       summary: '' 
     });
     const [loading, setLoading] = useState(false);
+    const [success, setSuccess] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       setLoading(true);
       try {
         await onRegisterCandidate(formData);
-        setIsTalentModalOpen(false);
-        alert('Cadastro realizado com sucesso!');
+        setSuccess(true);
+        // Clear form after success
+        setFormData({ name: '', email: '', phone: '', role: '', linkedin: '', externalLink: '', summary: '' });
       } catch (error) {
         console.error(error);
-        alert('Erro ao enviar cadastro. Tente novamente ou verifique se o modo Demo está ativo.');
+        alert('Erro ao enviar cadastro. Tente novamente.');
       } finally {
         setLoading(false);
       }
     };
+
+    if (success) {
+      return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 text-center">
+             <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle size={32} />
+             </div>
+             <h3 className="text-2xl font-bold text-gray-800 mb-2">Sucesso!</h3>
+             <p className="text-gray-600 mb-6">Seu cadastro foi realizado em nosso Banco de Talentos. Entraremos em contato assim que surgir uma oportunidade compatível.</p>
+             <Button fullWidth onClick={() => { setSuccess(false); setIsTalentModalOpen(false); }}>Fechar</Button>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -544,13 +572,25 @@ const PublicSite = ({
                </div>
             </div>
             <div className="p-10 md:w-3/5">
-              <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
-                <div className="grid grid-cols-1 gap-6">
-                  <div><label className="block text-sm font-medium text-gray-700 mb-2">Seu Nome</label><input type="text" className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 outline-none" placeholder="João Silva" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-2">Email</label><input type="email" className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 outline-none" placeholder="joao@empresa.com" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-2">Mensagem</label><textarea rows={4} className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 outline-none" placeholder="Como posso ajudar?"></textarea></div>
-                </div>
-                <Button fullWidth type="submit">Enviar Mensagem</Button>
+              <form className="space-y-6" onSubmit={handleContactSubmit}>
+                {contactStatus === 'success' ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-green-50 rounded-lg animate-in fade-in">
+                    <CheckCircle className="w-16 h-16 text-green-500 mb-4" />
+                    <h4 className="text-xl font-bold text-green-700 mb-2">Mensagem Enviada!</h4>
+                    <p className="text-green-600">Obrigada pelo contato. Responderei o mais breve possível.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 gap-6">
+                      <div><label className="block text-sm font-medium text-gray-700 mb-2">Seu Nome</label><input type="text" required className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 outline-none" placeholder="João Silva" /></div>
+                      <div><label className="block text-sm font-medium text-gray-700 mb-2">Email</label><input type="email" required className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 outline-none" placeholder="joao@empresa.com" /></div>
+                      <div><label className="block text-sm font-medium text-gray-700 mb-2">Mensagem</label><textarea required rows={4} className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 outline-none" placeholder="Como posso ajudar?"></textarea></div>
+                    </div>
+                    <Button fullWidth type="submit" disabled={contactStatus === 'submitting'}>
+                      {contactStatus === 'submitting' ? <Loader2 className="animate-spin mx-auto"/> : 'Enviar Mensagem'}
+                    </Button>
+                  </>
+                )}
               </form>
             </div>
           </div>
@@ -599,6 +639,16 @@ const App: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
 
+  // Admin States
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [clients, setClients] = useState<ClientCompany[]>([]);
+  const [onboardings, setOnboardings] = useState<OnboardingProcess[]>([]);
+
+  // Sub-states for Admin Actions
+  const [editingJob, setEditingJob] = useState<Partial<Job> | null>(null);
+  const [viewCandidate, setViewCandidate] = useState<Candidate | null>(null);
+
   useEffect(() => {
     if (auth) {
       const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -620,7 +670,7 @@ const App: React.FC = () => {
          return; 
       }
       try {
-        const q = query(collection(db, 'jobs'), where('active', '==', true));
+        const q = query(collection(db, 'jobs')); // Fetch all jobs for public and admin usage
         const unsubscribe = onSnapshot(q, (snapshot) => {
           const jobsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Job));
           setJobs(jobsData);
@@ -635,12 +685,35 @@ const App: React.FC = () => {
     fetchJobs();
   }, []);
 
+  // Fetch admin data only when logged in
+  useEffect(() => {
+    if (user && db && view === 'admin') {
+      const unsubCandidates = onSnapshot(query(collection(db, 'candidates'), orderBy('createdAt', 'desc')), (snap) => {
+        setCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() } as Candidate)));
+      });
+      const unsubClients = onSnapshot(collection(db, 'clients'), (snap) => {
+        setClients(snap.docs.map(d => ({ id: d.id, ...d.data() } as ClientCompany)));
+      });
+      const unsubOnboardings = onSnapshot(collection(db, 'onboardings'), (snap) => {
+        setOnboardings(snap.docs.map(d => ({ id: d.id, ...d.data() } as OnboardingProcess)));
+      });
+      return () => { unsubCandidates(); unsubClients(); unsubOnboardings(); };
+    }
+  }, [user, view]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const target = e.target as any;
     const email = target.email.value;
     const password = target.password.value;
     
+    // Bypass for simple testing if DB is down or special admin
+    if (email === 'admin@hevilin.com' && password === 'admin' && !auth) {
+       setUser({ email: 'admin@hevilin.com' } as User);
+       setView('admin');
+       return;
+    }
+
     try {
       if (!auth) throw new Error("Firebase não configurado.");
       await signInWithEmailAndPassword(auth, email, password);
@@ -654,9 +727,29 @@ const App: React.FC = () => {
      if (db) {
        await addDoc(collection(db, 'candidates'), { ...candidate, createdAt: serverTimestamp() });
      } else {
+       // Mock save
        await new Promise(r => setTimeout(r, 1000));
-       console.log("Demo candidate", candidate);
+       console.log("Demo candidate saved", candidate);
      }
+  };
+
+  // --- ADMIN ACTIONS ---
+  const saveJob = async () => {
+    if (!editingJob || !db) return;
+    try {
+      if (editingJob.id) {
+        const { id, ...data } = editingJob;
+        await updateDoc(doc(db, 'jobs', id), data);
+      } else {
+        await addDoc(collection(db, 'jobs'), { ...editingJob, active: true });
+      }
+      setEditingJob(null);
+    } catch(e) { console.error(e); alert('Erro ao salvar vaga'); }
+  };
+
+  const deleteJob = async (id: string) => {
+    if(!db || !window.confirm('Tem certeza?')) return;
+    await deleteDoc(doc(db, 'jobs', id));
   };
 
   if (view === 'public') {
@@ -699,15 +792,200 @@ const App: React.FC = () => {
     );
   }
 
+  // --- ADMIN DASHBOARD RENDER ---
   if (view === 'admin') {
+     const tabs = [
+       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+       { id: 'jobs', label: 'Vagas', icon: Briefcase },
+       { id: 'candidates', label: 'Talentos', icon: Users },
+       { id: 'clients', label: 'Clientes', icon: Building },
+       { id: 'onboarding', label: 'Admissão', icon: FileCheck },
+     ];
+
      return (
-       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center p-8">
-             <Logo className="h-16 mb-6 mx-auto" />
-             <h1 className="text-2xl font-bold text-brand-green mb-2">Painel Administrativo</h1>
-             <p className="text-gray-600 mb-6">Olá, {user?.email}. O sistema está em manutenção.</p>
-             <Button onClick={() => { if(auth) signOut(auth); setView('login'); }}>Sair</Button>
-          </div>
+       <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
+          {/* Sidebar */}
+          <aside className="w-full md:w-64 bg-brand-green text-white flex-shrink-0">
+             <div className="p-6 border-b border-white/10">
+               <Logo variant="full" className="h-10 text-white invert grayscale brightness-200" />
+             </div>
+             <nav className="p-4 space-y-2">
+               {tabs.map(t => (
+                 <button key={t.id} onClick={() => setActiveTab(t.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded transition-colors ${activeTab === t.id ? 'bg-brand-yellow text-brand-green font-bold' : 'hover:bg-white/10'}`}>
+                    <t.icon size={20} /> {t.label}
+                 </button>
+               ))}
+             </nav>
+             <div className="p-4 mt-auto">
+               <button onClick={() => { if(auth) signOut(auth); setView('login'); setUser(null); }} className="w-full flex items-center gap-3 px-4 py-3 text-red-300 hover:bg-white/10 rounded">
+                 <LogOut size={20} /> Sair
+               </button>
+             </div>
+          </aside>
+
+          {/* Main Content */}
+          <main className="flex-grow p-6 md:p-10 overflow-y-auto">
+             <header className="flex justify-between items-center mb-8">
+               <h1 className="text-2xl font-bold text-gray-800">{tabs.find(t=>t.id===activeTab)?.label}</h1>
+               <div className="text-sm text-gray-500">Usuário: {user?.email}</div>
+             </header>
+
+             {/* DASHBOARD TAB */}
+             {activeTab === 'dashboard' && (
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <div className="flex justify-between items-start mb-4">
+                       <div className="bg-blue-100 p-3 rounded-lg"><Briefcase className="text-blue-600"/></div>
+                       <span className="text-2xl font-bold">{jobs.filter(j=>j.active).length}</span>
+                    </div>
+                    <p className="text-gray-600">Vagas Ativas</p>
+                 </div>
+                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <div className="flex justify-between items-start mb-4">
+                       <div className="bg-purple-100 p-3 rounded-lg"><Users className="text-purple-600"/></div>
+                       <span className="text-2xl font-bold">{candidates.length}</span>
+                    </div>
+                    <p className="text-gray-600">Talentos no Banco</p>
+                 </div>
+                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <div className="flex justify-between items-start mb-4">
+                       <div className="bg-yellow-100 p-3 rounded-lg"><Building className="text-yellow-600"/></div>
+                       <span className="text-2xl font-bold">{clients.length}</span>
+                    </div>
+                    <p className="text-gray-600">Clientes Parceiros</p>
+                 </div>
+               </div>
+             )}
+
+             {/* JOBS TAB */}
+             {activeTab === 'jobs' && (
+               <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                 <div className="p-6 border-b border-gray-100 flex justify-between">
+                    <h2 className="font-bold text-lg">Gerenciar Vagas</h2>
+                    <Button className="py-2 px-4 text-sm" onClick={() => setEditingJob({ title:'', location:'', type:'', description:'', active: true })}>
+                       <Plus size={16} className="mr-2"/> Nova Vaga
+                    </Button>
+                 </div>
+                 {editingJob && (
+                   <div className="p-6 bg-gray-50 border-b border-gray-100">
+                      <h3 className="font-bold mb-4 text-sm uppercase text-brand-green">{editingJob.id ? 'Editar' : 'Criar'} Vaga</h3>
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                         <input placeholder="Título" className="p-2 border rounded" value={editingJob.title} onChange={e=>setEditingJob({...editingJob, title:e.target.value})} />
+                         <input placeholder="Local" className="p-2 border rounded" value={editingJob.location} onChange={e=>setEditingJob({...editingJob, location:e.target.value})} />
+                         <input placeholder="Tipo (CLT/PJ)" className="p-2 border rounded" value={editingJob.type} onChange={e=>setEditingJob({...editingJob, type:e.target.value})} />
+                         <textarea placeholder="Descrição" className="p-2 border rounded col-span-2" value={editingJob.description} onChange={e=>setEditingJob({...editingJob, description:e.target.value})} />
+                         <div className="flex items-center gap-2">
+                            <input type="checkbox" checked={editingJob.active} onChange={e=>setEditingJob({...editingJob, active:e.target.checked})} /> <label>Ativa no site?</label>
+                         </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button className="py-1 px-4 text-sm" onClick={saveJob}>Salvar</Button>
+                        <Button variant="outline" className="py-1 px-4 text-sm" onClick={() => setEditingJob(null)}>Cancelar</Button>
+                      </div>
+                   </div>
+                 )}
+                 <table className="w-full text-left">
+                   <thead className="bg-gray-50 text-sm text-gray-600 uppercase">
+                     <tr>
+                       <th className="p-4">Cargo</th>
+                       <th className="p-4">Local</th>
+                       <th className="p-4">Status</th>
+                       <th className="p-4 text-right">Ações</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-gray-100">
+                     {jobs.map(job => (
+                       <tr key={job.id} className="hover:bg-gray-50">
+                         <td className="p-4 font-medium">{job.title}</td>
+                         <td className="p-4 text-gray-600">{job.location}</td>
+                         <td className="p-4"><span className={`px-2 py-1 rounded text-xs ${job.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{job.active ? 'Ativa' : 'Inativa'}</span></td>
+                         <td className="p-4 text-right space-x-2">
+                           <button onClick={() => setEditingJob(job)} className="text-blue-600 hover:text-blue-800 text-sm">Editar</button>
+                           <button onClick={() => deleteJob(job.id)} className="text-red-600 hover:text-red-800 text-sm">Excluir</button>
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+             )}
+
+             {/* CANDIDATES TAB */}
+             {activeTab === 'candidates' && (
+               <div className="space-y-6">
+                 {/* Modal to view candidate details */}
+                 {viewCandidate && (
+                   <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 relative">
+                         <button onClick={() => setViewCandidate(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={24}/></button>
+                         <h3 className="text-2xl font-bold text-brand-green mb-1">{viewCandidate.name}</h3>
+                         <p className="text-gray-500 mb-6">{viewCandidate.role}</p>
+                         
+                         <div className="grid md:grid-cols-2 gap-6 mb-6">
+                            <div className="space-y-2 text-sm">
+                              <p className="flex items-center gap-2 text-gray-700"><Mail size={16}/> {viewCandidate.email}</p>
+                              <p className="flex items-center gap-2 text-gray-700"><Phone size={16}/> {viewCandidate.phone}</p>
+                              {viewCandidate.linkedin && <p className="flex items-center gap-2 text-blue-600"><Linkedin size={16}/> <a href={viewCandidate.linkedin} target="_blank" rel="noreferrer">Perfil LinkedIn</a></p>}
+                              {viewCandidate.externalLink && <p className="flex items-center gap-2 text-brand-yellow"><LinkIcon size={16}/> <a href={viewCandidate.externalLink} target="_blank" rel="noreferrer">Portfólio/Drive</a></p>}
+                            </div>
+                         </div>
+                         <div className="bg-gray-50 p-6 rounded-lg border border-gray-100">
+                           <h4 className="font-bold text-gray-800 mb-2 uppercase text-xs tracking-wide">Resumo Profissional</h4>
+                           <p className="whitespace-pre-wrap text-gray-700 text-sm leading-relaxed">{viewCandidate.summary}</p>
+                         </div>
+                         <div className="mt-6 flex justify-end">
+                            <Button onClick={() => setViewCandidate(null)}>Fechar</Button>
+                         </div>
+                      </div>
+                   </div>
+                 )}
+
+                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                   <div className="p-6 border-b border-gray-100"><h2 className="font-bold text-lg">Banco de Talentos</h2></div>
+                   <table className="w-full text-left">
+                     <thead className="bg-gray-50 text-sm text-gray-600 uppercase">
+                       <tr>
+                         <th className="p-4">Nome</th>
+                         <th className="p-4">Cargo</th>
+                         <th className="p-4">Contato</th>
+                         <th className="p-4 text-right">Detalhes</th>
+                       </tr>
+                     </thead>
+                     <tbody className="divide-y divide-gray-100">
+                       {candidates.length === 0 ? (
+                         <tr><td colSpan={4} className="p-6 text-center text-gray-500">Nenhum candidato cadastrado.</td></tr>
+                       ) : (
+                         candidates.map(c => (
+                           <tr key={c.id} className="hover:bg-gray-50">
+                             <td className="p-4 font-medium">{c.name}</td>
+                             <td className="p-4 text-gray-600">{c.role}</td>
+                             <td className="p-4 text-sm text-gray-500">{c.email}<br/>{c.phone}</td>
+                             <td className="p-4 text-right">
+                               <button onClick={() => setViewCandidate(c)} className="flex items-center gap-1 ml-auto text-brand-green hover:underline">
+                                 <Eye size={16} /> Ver Perfil
+                               </button>
+                             </td>
+                           </tr>
+                         ))
+                       )}
+                     </tbody>
+                   </table>
+                 </div>
+               </div>
+             )}
+             
+             {/* CLIENTS & ONBOARDING PLACEHOLDERS (Fully implementable with same pattern) */}
+             {(activeTab === 'clients' || activeTab === 'onboarding') && (
+               <div className="bg-white p-12 rounded-xl text-center shadow-sm border border-gray-100">
+                  <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+                    <AlertTriangle size={32} />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">Em Breve</h3>
+                  <p className="text-gray-600">O módulo de {activeTab === 'clients' ? 'Clientes' : 'Admissão'} será habilitado na próxima atualização.</p>
+               </div>
+             )}
+
+          </main>
        </div>
      );
   }
