@@ -4,7 +4,7 @@ import {
   MapPin, Clock, Upload, FileText, Lock, LayoutDashboard, 
   Users, Building, FileCheck, LogOut, Plus, Trash2, Link as LinkIcon, CheckCircle,
   Sparkles, Copy, RefreshCw, Loader2, Phone, Eye, AlertTriangle, MessageSquare,
-  ChevronRight, Calendar
+  ChevronRight, Calendar, Edit3
 } from 'lucide-react';
 import { Logo } from './components/Logo';
 import { Button } from './components/Button';
@@ -767,6 +767,17 @@ const App: React.FC = () => {
   };
   const deleteOnboarding = async (id: string) => { if(db && confirm('Excluir processo?')) await deleteDoc(doc(db, 'onboardings', id)); };
 
+  // New function for Client Status Update
+  const updateClientStatus = async (processId: string, newStatus: string) => {
+    if (!db) return;
+    try {
+      await updateDoc(doc(db, 'onboardings', processId), { status: newStatus });
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao atualizar status.');
+    }
+  };
+
   // --- RENDER ---
   if (view === 'public') {
     return (
@@ -874,6 +885,31 @@ const App: React.FC = () => {
                                   <strong>Nota:</strong> {proc.notes}
                                </div>
                             )}
+
+                             {/* Status Update Card */}
+                             <div className="mt-6 pt-4 border-t border-gray-100">
+                                <div className="bg-brand-light/50 p-4 rounded-lg border border-gray-200">
+                                   <div className="flex items-center gap-2 mb-2">
+                                      <Edit3 size={16} className="text-brand-green" />
+                                      <label className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+                                         Alterar Status do Processo
+                                      </label>
+                                   </div>
+                                   <select
+                                      className="w-full p-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-2 focus:ring-brand-green outline-none"
+                                      value={proc.status}
+                                      onChange={(e) => updateClientStatus(proc.id, e.target.value)}
+                                   >
+                                      <option value="Em Análise">Em Análise</option>
+                                      <option value="Aprovado">Aprovado</option>
+                                      <option value="Documentação Pendente">Documentação Pendente</option>
+                                      <option value="Concluído">Concluído</option>
+                                   </select>
+                                   <p className="text-xs text-gray-400 mt-2">
+                                      * Ao alterar, o status será atualizado automaticamente para o administrador.
+                                   </p>
+                                </div>
+                             </div>
                          </div>
                       ))}
                    </div>
