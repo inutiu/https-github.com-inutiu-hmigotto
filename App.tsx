@@ -3,7 +3,8 @@ import {
   Menu, X, Linkedin, Mail, ArrowRight, UserCheck, Search, Award, Briefcase, 
   MapPin, Clock, Upload, FileText, Lock, LayoutDashboard, 
   Users, Building, FileCheck, LogOut, Plus, Trash2, Link as LinkIcon, CheckCircle,
-  Sparkles, Copy, RefreshCw, Loader2, Phone, Eye, AlertTriangle, MessageSquare
+  Sparkles, Copy, RefreshCw, Loader2, Phone, Eye, AlertTriangle, MessageSquare,
+  ChevronRight, Calendar
 } from 'lucide-react';
 import { Logo } from './components/Logo';
 import { Button } from './components/Button';
@@ -12,7 +13,6 @@ import { Button } from './components/Button';
 import { auth, db } from './firebase';
 import { 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
   signOut, 
   onAuthStateChanged, 
   User
@@ -20,20 +20,20 @@ import {
 import { 
   collection, 
   addDoc, 
-  getDocs, 
   deleteDoc, 
   doc, 
   query, 
-  where, 
   onSnapshot,
   orderBy,
   updateDoc,
-  serverTimestamp
+  serverTimestamp,
+  where,
+  getDocs
 } from 'firebase/firestore';
 
 // --- TYPES & INTERFACES ---
 
-type ViewState = 'public' | 'login' | 'admin';
+type ViewState = 'public' | 'login' | 'admin' | 'client-portal';
 
 interface Job {
   id: string;
@@ -61,14 +61,21 @@ interface ClientCompany {
   name: string;
   email: string; 
   contactPerson: string;
+  accessCode: string; // Simple password for client portal
+  createdAt?: any;
 }
 
 interface OnboardingProcess {
   id: string;
+  candidateId: string;
   candidateName: string;
   clientId: string;
+  clientName: string;
   status: 'Em Análise' | 'Aprovado' | 'Documentação Pendente' | 'Concluído';
-  docsUrl?: string;
+  docsUrl?: string; // Link to Drive/Folder
+  startDate?: string;
+  notes?: string;
+  createdAt?: any;
 }
 
 interface Message {
@@ -138,16 +145,9 @@ const PublicSite = ({
           ...contactForm,
           createdAt: serverTimestamp()
         });
-      } else {
-        // Demo mode simulation
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        console.log("Demo Message Sent:", contactForm);
       }
-      
       setContactStatus('success');
       setContactForm({ name: '', email: '', message: '' });
-      
-      // Reset after 5 seconds
       setTimeout(() => setContactStatus('idle'), 5000);
     } catch (error) {
       console.error("Error sending message:", error);
@@ -172,7 +172,7 @@ const PublicSite = ({
     </a>
   );
 
-  // LinkedIn Profile Generator Modal
+  // LinkedIn Profile Generator Modal (Simulated)
   const LinkedInGeneratorModal = () => {
     const [step, setStep] = useState(1);
     const [data, setData] = useState({
@@ -198,7 +198,6 @@ const PublicSite = ({
 
       const abouts = [
         `Olá, sou ${data.name}. \n\nCom mais de ${data.years} anos de atuação em ${data.area}, construí uma carreira sólida como ${data.role}. \n\nMinha expertise principal envolve ${data.skills}, o que me permite entregar resultados consistentes e inovadores. \n\nRecentemente, destaquei-me por ${data.achievement}. \n\nEstou sempre em busca de novos desafios e conexões que valorizem o crescimento mútuo.`,
-        
         `Apaixonado por ${data.area} e focado em resultados.\n\nAtuo como ${data.role} combinando visão estratégica com execução técnica. Minhas principais competências incluem ${s1} e ${s2}.\n\nAo longo da minha trajetória, tive a oportunidade de ${data.achievement}, o que reforçou minha capacidade de resolver problemas complexos.\n\nVamos nos conectar!`
       ];
 
@@ -223,7 +222,7 @@ const PublicSite = ({
             {step === 1 ? (
               <div className="space-y-6">
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 text-blue-800 text-sm">
-                  Preencha os dados abaixo para gerar sugestões profissionais. Sem uso de IA, apenas modelos de alta conversão.
+                  Preencha os dados abaixo para gerar sugestões profissionais.
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
@@ -239,7 +238,7 @@ const PublicSite = ({
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Área de Atuação</label>
                     <input className="w-full p-2 border rounded focus:ring-2 focus:ring-[#0077B5] outline-none" 
-                      value={data.area} onChange={e => setData({...data, area: e.target.value})} placeholder="Ex: Tecnologia, Varejo..." />
+                      value={data.area} onChange={e => setData({...data, area: e.target.value})} placeholder="Ex: Tecnologia" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Anos de Experiência</label>
@@ -247,14 +246,14 @@ const PublicSite = ({
                       value={data.years} onChange={e => setData({...data, years: e.target.value})} placeholder="Ex: 5" />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">3 Principais Habilidades (separadas por vírgula)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">3 Principais Habilidades</label>
                     <input className="w-full p-2 border rounded focus:ring-2 focus:ring-[#0077B5] outline-none" 
-                      value={data.skills} onChange={e => setData({...data, skills: e.target.value})} placeholder="Ex: Liderança, Negociação, Excel Avançado" />
+                      value={data.skills} onChange={e => setData({...data, skills: e.target.value})} placeholder="Separadas por vírgula" />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Uma Conquista ou Destaque Principal</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Uma Conquista Principal</label>
                     <textarea rows={2} className="w-full p-2 border rounded focus:ring-2 focus:ring-[#0077B5] outline-none" 
-                      value={data.achievement} onChange={e => setData({...data, achievement: e.target.value})} placeholder="Ex: liderei um time de 10 pessoas, aumentei as vendas em 20%..." />
+                      value={data.achievement} onChange={e => setData({...data, achievement: e.target.value})} placeholder="Ex: liderei um time de 10 pessoas..." />
                   </div>
                 </div>
                 <button onClick={handleGenerate} className="w-full bg-[#0077B5] text-white font-bold py-3 rounded-lg hover:bg-[#006097] transition flex items-center justify-center gap-2">
@@ -274,21 +273,8 @@ const PublicSite = ({
                       ))}
                     </div>
                  </div>
-
-                 <div>
-                    <h4 className="text-[#0077B5] font-bold uppercase text-sm tracking-wide mb-3 flex items-center gap-2"><FileText size={16}/> Opções de Sobre (About)</h4>
-                    <div className="space-y-4">
-                      {generated?.abouts.map((about, idx) => (
-                        <div key={idx} className="bg-gray-50 p-4 rounded border border-gray-200 group hover:border-[#0077B5] transition relative">
-                           <p className="text-gray-700 text-sm whitespace-pre-wrap leading-relaxed">{about}</p>
-                           <button onClick={() => copyToClipboard(about)} className="absolute top-4 right-4 text-gray-400 hover:text-[#0077B5]" title="Copiar"><Copy size={18}/></button>
-                        </div>
-                      ))}
-                    </div>
-                 </div>
-
                  <button onClick={() => setStep(1)} className="text-sm text-gray-500 hover:text-[#0077B5] flex items-center gap-1 mx-auto">
-                    <RefreshCw size={14} /> Tentar novamente com outros dados
+                    <RefreshCw size={14} /> Tentar novamente
                  </button>
               </div>
             )}
@@ -301,13 +287,7 @@ const PublicSite = ({
   // Talent Registration Modal Form
   const TalentModal = () => {
     const [formData, setFormData] = useState({ 
-      name: '', 
-      email: '', 
-      phone: '',
-      role: '', 
-      linkedin: '', 
-      externalLink: '',
-      summary: '' 
+      name: '', email: '', phone: '', role: '', linkedin: '', externalLink: '', summary: '' 
     });
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
@@ -318,7 +298,6 @@ const PublicSite = ({
       try {
         await onRegisterCandidate(formData);
         setSuccess(true);
-        // Clear form after success
         setFormData({ name: '', email: '', phone: '', role: '', linkedin: '', externalLink: '', summary: '' });
       } catch (error) {
         console.error(error);
@@ -336,7 +315,7 @@ const PublicSite = ({
                 <CheckCircle size={32} />
              </div>
              <h3 className="text-2xl font-bold text-gray-800 mb-2">Sucesso!</h3>
-             <p className="text-gray-600 mb-6">Seu cadastro foi realizado em nosso Banco de Talentos. Entraremos em contato assim que surgir uma oportunidade compatível.</p>
+             <p className="text-gray-600 mb-6">Seu cadastro foi realizado em nosso Banco de Talentos.</p>
              <Button fullWidth onClick={() => { setSuccess(false); setIsTalentModalOpen(false); }}>Fechar</Button>
           </div>
         </div>
@@ -351,55 +330,21 @@ const PublicSite = ({
             <button onClick={() => setIsTalentModalOpen(false)} className="hover:bg-white/10 p-1 rounded transition"><X size={24} /></button>
           </div>
           <div className="p-6 overflow-y-auto">
-            <p className="text-gray-600 mb-6 text-sm">Preencha o formulário completo abaixo para que possamos conhecer sua trajetória.</p>
+            <p className="text-gray-600 mb-6 text-sm">Preencha o formulário para se cadastrar.</p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label>
-                  <input required type="text" className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-green outline-none" 
-                    value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Seu nome" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email Principal</label>
-                  <input required type="email" className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-green outline-none" 
-                    value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="seu@email.com" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Telefone / WhatsApp</label>
-                  <input required type="text" className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-green outline-none" 
-                    value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="(11) 99999-9999" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Área de Interesse/Cargo</label>
-                  <input required type="text" className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-green outline-none" 
-                    value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} placeholder="Ex: Analista Financeiro" />
-                </div>
+                <input required className="w-full px-4 py-2 rounded-lg border border-gray-300" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Nome Completo" />
+                <input required type="email" className="w-full px-4 py-2 rounded-lg border border-gray-300" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="Email" />
+                <input required className="w-full px-4 py-2 rounded-lg border border-gray-300" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="Telefone" />
+                <input required className="w-full px-4 py-2 rounded-lg border border-gray-300" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} placeholder="Área/Cargo" />
               </div>
-              
               <div className="grid md:grid-cols-2 gap-4">
-                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">LinkedIn (URL)</label>
-                    <input type="url" className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-green outline-none" 
-                      value={formData.linkedin} onChange={e => setFormData({...formData, linkedin: e.target.value})} placeholder="https://linkedin.com/in/..." />
-                 </div>
-                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Link do Portfólio/Drive (Opcional)</label>
-                    <input type="url" className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-green outline-none" 
-                      value={formData.externalLink} onChange={e => setFormData({...formData, externalLink: e.target.value})} placeholder="Link externo para arquivos..." />
-                 </div>
+                 <input className="w-full px-4 py-2 rounded-lg border border-gray-300" value={formData.linkedin} onChange={e => setFormData({...formData, linkedin: e.target.value})} placeholder="LinkedIn URL" />
+                 <input className="w-full px-4 py-2 rounded-lg border border-gray-300" value={formData.externalLink} onChange={e => setFormData({...formData, externalLink: e.target.value})} placeholder="Link Externo (Drive/Portfólio)" />
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Resumo de Qualificações / Mini-CV</label>
-                <textarea required rows={5} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-green outline-none text-sm" 
-                  value={formData.summary} onChange={e => setFormData({...formData, summary: e.target.value})} 
-                  placeholder="Descreva brevemente sua experiência, formação e principais habilidades..." />
-              </div>
-
+              <textarea required rows={5} className="w-full px-4 py-3 rounded-lg border border-gray-300" value={formData.summary} onChange={e => setFormData({...formData, summary: e.target.value})} placeholder="Resumo de qualificações..." />
               <div className="pt-2">
-                <Button fullWidth type="submit" disabled={loading}>
-                  {loading ? <Loader2 className="animate-spin mx-auto" /> : 'Enviar Cadastro'}
-                </Button>
+                <Button fullWidth type="submit" disabled={loading}>{loading ? <Loader2 className="animate-spin mx-auto" /> : 'Enviar Cadastro'}</Button>
               </div>
             </form>
           </div>
@@ -614,39 +559,18 @@ const PublicSite = ({
                 ) : (
                   <>
                     <div className="grid grid-cols-1 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Seu Nome</label>
-                        <input 
-                          type="text" 
-                          required 
-                          className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 outline-none focus:ring-2 focus:ring-brand-green/20" 
-                          placeholder="João Silva"
-                          value={contactForm.name}
-                          onChange={e => setContactForm({...contactForm, name: e.target.value})}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                        <input 
-                          type="email" 
-                          required 
-                          className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 outline-none focus:ring-2 focus:ring-brand-green/20" 
-                          placeholder="joao@empresa.com" 
-                          value={contactForm.email}
-                          onChange={e => setContactForm({...contactForm, email: e.target.value})}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Mensagem</label>
-                        <textarea 
-                          required 
-                          rows={4} 
-                          className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 outline-none focus:ring-2 focus:ring-brand-green/20" 
-                          placeholder="Como posso ajudar?"
-                          value={contactForm.message}
-                          onChange={e => setContactForm({...contactForm, message: e.target.value})}
-                        ></textarea>
-                      </div>
+                      <input 
+                        type="text" required className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200" 
+                        placeholder="Nome" value={contactForm.name} onChange={e => setContactForm({...contactForm, name: e.target.value})}
+                      />
+                      <input 
+                        type="email" required className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200" 
+                        placeholder="Email" value={contactForm.email} onChange={e => setContactForm({...contactForm, email: e.target.value})}
+                      />
+                      <textarea 
+                        required rows={4} className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200" 
+                        placeholder="Mensagem..." value={contactForm.message} onChange={e => setContactForm({...contactForm, message: e.target.value})}
+                      ></textarea>
                     </div>
                     <Button fullWidth type="submit" disabled={contactStatus === 'submitting'}>
                       {contactStatus === 'submitting' ? <Loader2 className="animate-spin mx-auto"/> : 'Enviar Mensagem'}
@@ -680,13 +604,7 @@ const PublicSite = ({
       </footer>
 
       {/* WhatsApp Floating Button */}
-      <a 
-        href="https://wa.me/5511990072419" 
-        target="_blank" 
-        rel="noopener noreferrer" 
-        className="fixed bottom-6 right-6 z-50 bg-[#25D366] text-white p-3 md:p-4 rounded-full shadow-xl hover:scale-110 transition-transform duration-300 flex items-center justify-center hover:bg-[#20bd5a]"
-        aria-label="Fale conosco pelo WhatsApp"
-      >
+      <a href="https://wa.me/5511990072419" target="_blank" rel="noopener noreferrer" className="fixed bottom-6 right-6 z-50 bg-[#25D366] text-white p-3 md:p-4 rounded-full shadow-xl hover:scale-110 transition-transform duration-300 hover:bg-[#20bd5a]">
         <svg viewBox="0 0 24 24" className="w-8 h-8 md:w-10 md:h-10 fill-current">
           <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.008-.57-.008-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
         </svg>
@@ -698,28 +616,32 @@ const PublicSite = ({
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>('public');
   const [user, setUser] = useState<User | null>(null);
+  const [currentClient, setCurrentClient] = useState<ClientCompany | null>(null);
+  
+  // Data States
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
-
-  // Admin States
-  const [activeTab, setActiveTab] = useState('dashboard');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [clients, setClients] = useState<ClientCompany[]>([]);
   const [onboardings, setOnboardings] = useState<OnboardingProcess[]>([]);
 
-  // Sub-states for Admin Actions
+  // Admin UI States
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [editingJob, setEditingJob] = useState<Partial<Job> | null>(null);
   const [viewCandidate, setViewCandidate] = useState<Candidate | null>(null);
+  const [editingClient, setEditingClient] = useState<Partial<ClientCompany> | null>(null);
+  const [editingOnboarding, setEditingOnboarding] = useState<Partial<OnboardingProcess> | null>(null);
+
+  // Login State
+  const [loginMode, setLoginMode] = useState<'admin' | 'client'>('admin');
+  const [clientLoginData, setClientLoginData] = useState({ email: '', code: '' });
 
   useEffect(() => {
     if (auth) {
       const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
         setUser(currentUser);
-        // If user is logged in, automatically go to admin view
-        if (currentUser) {
-            setView('admin');
-        }
+        if (currentUser) setView('admin');
       });
       return () => unsubscribe();
     }
@@ -727,99 +649,125 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const fetchJobs = async () => {
-      if (!db) {
-         setJobs([
-            { id: '1', title: 'Gerente Comercial', location: 'São Paulo', type: 'Presencial', description: 'Liderança de equipe comercial.', active: true },
-            { id: '2', title: 'Desenvolvedor Frontend', location: 'Remoto', type: 'PJ', description: 'React e Node.js.', active: true },
-            { id: '3', title: 'Analista de RH', location: 'Híbrido', type: 'CLT', description: 'Foco em R&S.', active: true },
-         ]); 
-         setLoadingJobs(false);
-         return; 
-      }
+      if (!db) return;
       try {
-        const q = query(collection(db, 'jobs')); // Fetch all jobs for public and admin usage
+        const q = query(collection(db, 'jobs'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-          const jobsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Job));
-          setJobs(jobsData);
+          setJobs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Job)));
           setLoadingJobs(false);
         });
         return () => unsubscribe();
       } catch (error) {
-        console.error("Error fetching jobs", error);
+        console.error(error);
         setLoadingJobs(false);
       }
     };
     fetchJobs();
   }, []);
 
-  // Fetch admin data only when logged in
+  // Fetch admin data
   useEffect(() => {
     if (user && db && view === 'admin') {
-      const unsubCandidates = onSnapshot(query(collection(db, 'candidates'), orderBy('createdAt', 'desc')), (snap) => {
-        setCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() } as Candidate)));
-      });
-      const unsubMessages = onSnapshot(query(collection(db, 'messages'), orderBy('createdAt', 'desc')), (snap) => {
-        setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() } as Message)));
-      });
-      const unsubClients = onSnapshot(collection(db, 'clients'), (snap) => {
-        setClients(snap.docs.map(d => ({ id: d.id, ...d.data() } as ClientCompany)));
-      });
-      const unsubOnboardings = onSnapshot(collection(db, 'onboardings'), (snap) => {
-        setOnboardings(snap.docs.map(d => ({ id: d.id, ...d.data() } as OnboardingProcess)));
-      });
+      const unsubCandidates = onSnapshot(query(collection(db, 'candidates'), orderBy('createdAt', 'desc')), (snap) => setCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() } as Candidate))));
+      const unsubMessages = onSnapshot(query(collection(db, 'messages'), orderBy('createdAt', 'desc')), (snap) => setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() } as Message))));
+      const unsubClients = onSnapshot(collection(db, 'clients'), (snap) => setClients(snap.docs.map(d => ({ id: d.id, ...d.data() } as ClientCompany))));
+      const unsubOnboardings = onSnapshot(collection(db, 'onboardings'), (snap) => setOnboardings(snap.docs.map(d => ({ id: d.id, ...d.data() } as OnboardingProcess))));
       return () => { unsubCandidates(); unsubMessages(); unsubClients(); unsubOnboardings(); };
     }
   }, [user, view]);
 
+  // Client Portal Data
+  useEffect(() => {
+    if (view === 'client-portal' && currentClient && db) {
+      const q = query(collection(db, 'onboardings'), where('clientId', '==', currentClient.id));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        setOnboardings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as OnboardingProcess)));
+      });
+      return () => unsubscribe();
+    }
+  }, [view, currentClient]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const target = e.target as any;
-    const email = target.email.value;
-    const password = target.password.value;
-    
-    if (!auth) {
-        alert("Firebase não está configurado. Não é possível fazer login.");
-        return;
-    }
-
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // View will change via onAuthStateChanged effect
-    } catch (error: any) {
-       // Standard error handling
-       alert(getErrorMessage(error));
+    if (loginMode === 'admin') {
+      if (!auth) return;
+      try {
+        const target = e.target as any;
+        await signInWithEmailAndPassword(auth, target.email.value, target.password.value);
+      } catch (error: any) {
+         alert(getErrorMessage(error));
+      }
+    } else {
+      // Client Login
+      if (!db) return;
+      try {
+        const q = query(collection(db, 'clients'), where('email', '==', clientLoginData.email), where('accessCode', '==', clientLoginData.code));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          setCurrentClient({ id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() } as ClientCompany);
+          setView('client-portal');
+        } else {
+          alert('Credenciais inválidas.');
+        }
+      } catch (error) {
+        console.error(error);
+        alert('Erro ao entrar.');
+      }
     }
   };
 
   const handleRegisterCandidate = async (candidate: any) => {
-     if (db) {
-       await addDoc(collection(db, 'candidates'), { ...candidate, createdAt: serverTimestamp() });
-     } else {
-       // Mock save
-       await new Promise(r => setTimeout(r, 1000));
-       console.log("Demo candidate saved", candidate);
-     }
+     if (db) await addDoc(collection(db, 'candidates'), { ...candidate, createdAt: serverTimestamp() });
   };
 
-  // --- ADMIN ACTIONS ---
+  // --- CRUD FUNCTIONS ---
   const saveJob = async () => {
     if (!editingJob || !db) return;
-    try {
-      if (editingJob.id) {
-        const { id, ...data } = editingJob;
-        await updateDoc(doc(db, 'jobs', id), data);
-      } else {
-        await addDoc(collection(db, 'jobs'), { ...editingJob, active: true });
-      }
-      setEditingJob(null);
-    } catch(e) { console.error(e); alert('Erro ao salvar vaga'); }
+    if (editingJob.id) {
+      const { id, ...data } = editingJob;
+      await updateDoc(doc(db, 'jobs', id), data);
+    } else {
+      await addDoc(collection(db, 'jobs'), { ...editingJob, active: true });
+    }
+    setEditingJob(null);
   };
+  const deleteJob = async (id: string) => { if(db && confirm('Excluir?')) await deleteDoc(doc(db, 'jobs', id)); };
 
-  const deleteJob = async (id: string) => {
-    if(!db || !window.confirm('Tem certeza?')) return;
-    await deleteDoc(doc(db, 'jobs', id));
+  const saveClient = async () => {
+    if (!editingClient || !db) return;
+    if (editingClient.id) {
+      const { id, ...data } = editingClient;
+      await updateDoc(doc(db, 'clients', id), data);
+    } else {
+      await addDoc(collection(db, 'clients'), { ...editingClient, createdAt: serverTimestamp() });
+    }
+    setEditingClient(null);
   };
+  const deleteClient = async (id: string) => { if(db && confirm('Excluir cliente?')) await deleteDoc(doc(db, 'clients', id)); };
 
+  const saveOnboarding = async () => {
+    if (!editingOnboarding || !db) return;
+    // Find candidate and client names to denormalize for easier display
+    const cand = candidates.find(c => c.id === editingOnboarding.candidateId);
+    const cli = clients.find(c => c.id === editingOnboarding.clientId);
+    
+    const dataToSave = {
+       ...editingOnboarding,
+       candidateName: cand?.name || editingOnboarding.candidateName || 'Desconhecido',
+       clientName: cli?.name || editingOnboarding.clientName || 'Desconhecido'
+    };
+
+    if (editingOnboarding.id) {
+      const { id, ...data } = dataToSave;
+      await updateDoc(doc(db, 'onboardings', id), data);
+    } else {
+      await addDoc(collection(db, 'onboardings'), { ...dataToSave, createdAt: serverTimestamp(), status: 'Em Análise' });
+    }
+    setEditingOnboarding(null);
+  };
+  const deleteOnboarding = async (id: string) => { if(db && confirm('Excluir processo?')) await deleteDoc(doc(db, 'onboardings', id)); };
+
+  // --- RENDER ---
   if (view === 'public') {
     return (
       <PublicSite 
@@ -840,32 +788,103 @@ const App: React.FC = () => {
        <div className="min-h-screen bg-brand-light flex items-center justify-center p-4">
          <div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-md">
             <div className="flex justify-center mb-6"><Logo /></div>
-            <h2 className="text-xl font-bold text-center text-brand-green mb-6">Área Restrita</h2>
+            <div className="flex bg-gray-100 rounded p-1 mb-6">
+               <button className={`flex-1 py-2 rounded text-sm font-bold transition ${loginMode === 'admin' ? 'bg-white shadow text-brand-green' : 'text-gray-500'}`} onClick={() => setLoginMode('admin')}>Admin</button>
+               <button className={`flex-1 py-2 rounded text-sm font-bold transition ${loginMode === 'client' ? 'bg-white shadow text-brand-green' : 'text-gray-500'}`} onClick={() => setLoginMode('client')}>Sou Cliente</button>
+            </div>
+            
+            <h2 className="text-xl font-bold text-center text-brand-green mb-6">{loginMode === 'admin' ? 'Área Restrita' : 'Portal do Cliente'}</h2>
+            
             <form onSubmit={handleLogin} className="space-y-4">
-               <div>
-                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                 <input name="email" type="email" required className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-green outline-none" placeholder="adm@hmigotto.com" />
-               </div>
-               <div>
-                 <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
-                 <input name="password" type="password" required className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-green outline-none" />
-               </div>
+               {loginMode === 'admin' ? (
+                 <>
+                   <input name="email" type="email" required className="w-full p-3 border rounded-lg" placeholder="Email (adm@hmigotto.com)" />
+                   <input name="password" type="password" required className="w-full p-3 border rounded-lg" placeholder="Senha" />
+                 </>
+               ) : (
+                 <>
+                   <input 
+                      type="email" required className="w-full p-3 border rounded-lg" placeholder="Email da Empresa" 
+                      value={clientLoginData.email} onChange={e => setClientLoginData({...clientLoginData, email: e.target.value})}
+                   />
+                   <input 
+                      type="password" required className="w-full p-3 border rounded-lg" placeholder="Código de Acesso" 
+                      value={clientLoginData.code} onChange={e => setClientLoginData({...clientLoginData, code: e.target.value})}
+                   />
+                 </>
+               )}
                <Button fullWidth type="submit">Entrar</Button>
             </form>
             <div className="mt-6 text-center">
                <button onClick={() => setView('public')} className="text-sm text-gray-500 hover:text-brand-green">Voltar ao site</button>
-            </div>
-            
-            <div className="mt-8 pt-6 border-t border-gray-100 text-xs text-gray-400 text-center">
-                <p>Use seu email e senha de administrador cadastrados no Firebase.</p>
-                <p>(Email sugerido: adm@hmigotto.com)</p>
             </div>
          </div>
        </div>
     );
   }
 
-  // --- ADMIN DASHBOARD RENDER ---
+  // --- CLIENT PORTAL ---
+  if (view === 'client-portal') {
+     return (
+        <div className="min-h-screen bg-gray-50">
+           <nav className="bg-brand-green text-white p-4 shadow-lg">
+              <div className="container mx-auto flex justify-between items-center">
+                 <Logo className="h-10 brightness-200 invert grayscale" />
+                 <div className="flex items-center gap-4">
+                    <span className="font-semibold text-sm hidden md:inline">Olá, {currentClient?.name}</span>
+                    <button onClick={() => { setView('public'); setCurrentClient(null); }} className="text-sm bg-white/10 px-3 py-1 rounded hover:bg-white/20">Sair</button>
+                 </div>
+              </div>
+           </nav>
+           <main className="container mx-auto p-6">
+              <h1 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2"><FileCheck className="text-brand-yellow"/> Processos de Admissão</h1>
+              
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                {onboardings.length === 0 ? (
+                   <div className="p-10 text-center text-gray-500">Nenhum processo em andamento no momento.</div>
+                ) : (
+                   <div className="grid gap-4 p-6">
+                      {onboardings.map(proc => (
+                         <div key={proc.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition bg-white">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                               <div>
+                                  <h3 className="font-bold text-lg text-brand-green">{proc.candidateName}</h3>
+                                  <div className="flex items-center gap-2 mt-1">
+                                     <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                        proc.status === 'Concluído' ? 'bg-green-100 text-green-700' :
+                                        proc.status === 'Aprovado' ? 'bg-blue-100 text-blue-700' :
+                                        proc.status === 'Documentação Pendente' ? 'bg-yellow-100 text-yellow-700' :
+                                        'bg-gray-100 text-gray-600'
+                                     }`}>{proc.status}</span>
+                                     <span className="text-xs text-gray-400">Iniciado em: {proc.createdAt?.seconds ? new Date(proc.createdAt.seconds * 1000).toLocaleDateString() : '-'}</span>
+                                  </div>
+                               </div>
+                               <div>
+                                  {proc.docsUrl ? (
+                                     <a href={proc.docsUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 bg-brand-green text-white px-4 py-2 rounded hover:bg-green-800 transition">
+                                        <LinkIcon size={16}/> Acessar Documentos
+                                     </a>
+                                  ) : (
+                                     <span className="text-sm text-gray-400 italic flex items-center gap-1"><Lock size={14}/> Docs indisponíveis</span>
+                                  )}
+                               </div>
+                            </div>
+                            {proc.notes && (
+                               <div className="mt-4 bg-gray-50 p-3 rounded text-sm text-gray-600 border-l-4 border-brand-yellow">
+                                  <strong>Nota:</strong> {proc.notes}
+                               </div>
+                            )}
+                         </div>
+                      ))}
+                   </div>
+                )}
+              </div>
+           </main>
+        </div>
+     );
+  }
+
+  // --- ADMIN DASHBOARD ---
   if (view === 'admin') {
      const tabs = [
        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -878,7 +897,6 @@ const App: React.FC = () => {
 
      return (
        <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
-          {/* Sidebar */}
           <aside className="w-full md:w-64 bg-brand-green text-white flex-shrink-0">
              <div className="p-6 border-b border-white/10">
                <Logo variant="full" className="h-10 text-white invert grayscale brightness-200" />
@@ -897,7 +915,6 @@ const App: React.FC = () => {
              </div>
           </aside>
 
-          {/* Main Content */}
           <main className="flex-grow p-6 md:p-10 overflow-y-auto">
              <header className="flex justify-between items-center mb-8">
                <h1 className="text-2xl font-bold text-gray-800">{tabs.find(t=>t.id===activeTab)?.label}</h1>
@@ -908,31 +925,19 @@ const App: React.FC = () => {
              {activeTab === 'dashboard' && (
                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div className="flex justify-between items-start mb-4">
-                       <div className="bg-blue-100 p-3 rounded-lg"><Briefcase className="text-blue-600"/></div>
-                       <span className="text-2xl font-bold">{jobs.filter(j=>j.active).length}</span>
-                    </div>
+                    <div className="flex justify-between items-start mb-4"><div className="bg-blue-100 p-3 rounded-lg"><Briefcase className="text-blue-600"/></div><span className="text-2xl font-bold">{jobs.filter(j=>j.active).length}</span></div>
                     <p className="text-gray-600">Vagas Ativas</p>
                  </div>
                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div className="flex justify-between items-start mb-4">
-                       <div className="bg-purple-100 p-3 rounded-lg"><Users className="text-purple-600"/></div>
-                       <span className="text-2xl font-bold">{candidates.length}</span>
-                    </div>
+                    <div className="flex justify-between items-start mb-4"><div className="bg-purple-100 p-3 rounded-lg"><Users className="text-purple-600"/></div><span className="text-2xl font-bold">{candidates.length}</span></div>
                     <p className="text-gray-600">Talentos no Banco</p>
                  </div>
                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div className="flex justify-between items-start mb-4">
-                       <div className="bg-green-100 p-3 rounded-lg"><MessageSquare className="text-green-600"/></div>
-                       <span className="text-2xl font-bold">{messages.length}</span>
-                    </div>
+                    <div className="flex justify-between items-start mb-4"><div className="bg-green-100 p-3 rounded-lg"><MessageSquare className="text-green-600"/></div><span className="text-2xl font-bold">{messages.length}</span></div>
                     <p className="text-gray-600">Mensagens Recebidas</p>
                  </div>
                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div className="flex justify-between items-start mb-4">
-                       <div className="bg-yellow-100 p-3 rounded-lg"><Building className="text-yellow-600"/></div>
-                       <span className="text-2xl font-bold">{clients.length}</span>
-                    </div>
+                    <div className="flex justify-between items-start mb-4"><div className="bg-yellow-100 p-3 rounded-lg"><Building className="text-yellow-600"/></div><span className="text-2xl font-bold">{clients.length}</span></div>
                     <p className="text-gray-600">Clientes Parceiros</p>
                  </div>
                </div>
@@ -967,12 +972,7 @@ const App: React.FC = () => {
                  )}
                  <table className="w-full text-left">
                    <thead className="bg-gray-50 text-sm text-gray-600 uppercase">
-                     <tr>
-                       <th className="p-4">Cargo</th>
-                       <th className="p-4">Local</th>
-                       <th className="p-4">Status</th>
-                       <th className="p-4 text-right">Ações</th>
-                     </tr>
+                     <tr><th className="p-4">Cargo</th><th className="p-4">Local</th><th className="p-4">Status</th><th className="p-4 text-right">Ações</th></tr>
                    </thead>
                    <tbody className="divide-y divide-gray-100">
                      {jobs.map(job => (
@@ -989,6 +989,113 @@ const App: React.FC = () => {
                    </tbody>
                  </table>
                </div>
+             )}
+
+             {/* CLIENTS TAB */}
+             {activeTab === 'clients' && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                   <div className="p-6 border-b border-gray-100 flex justify-between">
+                      <h2 className="font-bold text-lg">Empresas Parceiras</h2>
+                      <Button className="py-2 px-4 text-sm" onClick={() => setEditingClient({ name:'', email:'', contactPerson:'', accessCode:'' })}>
+                         <Plus size={16} className="mr-2"/> Novo Cliente
+                      </Button>
+                   </div>
+                   {editingClient && (
+                      <div className="p-6 bg-gray-50 border-b border-gray-100">
+                         <div className="grid grid-cols-2 gap-4 mb-4">
+                            <input placeholder="Nome da Empresa" className="p-2 border rounded" value={editingClient.name} onChange={e=>setEditingClient({...editingClient, name:e.target.value})} />
+                            <input placeholder="Pessoa de Contato" className="p-2 border rounded" value={editingClient.contactPerson} onChange={e=>setEditingClient({...editingClient, contactPerson:e.target.value})} />
+                            <input placeholder="Email (Login)" className="p-2 border rounded" value={editingClient.email} onChange={e=>setEditingClient({...editingClient, email:e.target.value})} />
+                            <input placeholder="Código de Acesso (Senha)" className="p-2 border rounded" value={editingClient.accessCode} onChange={e=>setEditingClient({...editingClient, accessCode:e.target.value})} />
+                         </div>
+                         <div className="flex gap-2">
+                           <Button className="py-1 px-4 text-sm" onClick={saveClient}>Salvar</Button>
+                           <Button variant="outline" className="py-1 px-4 text-sm" onClick={() => setEditingClient(null)}>Cancelar</Button>
+                         </div>
+                      </div>
+                   )}
+                   <table className="w-full text-left">
+                      <thead className="bg-gray-50 text-sm text-gray-600 uppercase">
+                         <tr><th className="p-4">Empresa</th><th className="p-4">Email</th><th className="p-4">Acesso</th><th className="p-4 text-right">Ações</th></tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                         {clients.map(cli => (
+                            <tr key={cli.id} className="hover:bg-gray-50">
+                               <td className="p-4 font-medium">{cli.name} <span className="text-xs text-gray-400 block">{cli.contactPerson}</span></td>
+                               <td className="p-4 text-gray-600">{cli.email}</td>
+                               <td className="p-4"><code className="bg-gray-100 px-2 py-1 rounded text-xs">{cli.accessCode}</code></td>
+                               <td className="p-4 text-right space-x-2">
+                                  <button onClick={() => setEditingClient(cli)} className="text-blue-600 text-sm">Editar</button>
+                                  <button onClick={() => deleteClient(cli.id)} className="text-red-600 text-sm">Excluir</button>
+                               </td>
+                            </tr>
+                         ))}
+                      </tbody>
+                   </table>
+                </div>
+             )}
+
+             {/* ONBOARDING TAB */}
+             {activeTab === 'onboarding' && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                   <div className="p-6 border-b border-gray-100 flex justify-between">
+                      <h2 className="font-bold text-lg">Processos de Admissão</h2>
+                      <Button className="py-2 px-4 text-sm" onClick={() => setEditingOnboarding({ candidateId:'', clientId:'', status:'Em Análise', docsUrl:'' })}>
+                         <Plus size={16} className="mr-2"/> Novo Processo
+                      </Button>
+                   </div>
+                   {editingOnboarding && (
+                      <div className="p-6 bg-gray-50 border-b border-gray-100">
+                         <div className="grid grid-cols-2 gap-4 mb-4">
+                            <select className="p-2 border rounded" value={editingOnboarding.candidateId} onChange={e=>setEditingOnboarding({...editingOnboarding, candidateId:e.target.value})}>
+                               <option value="">Selecione o Candidato</option>
+                               {candidates.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                            <select className="p-2 border rounded" value={editingOnboarding.clientId} onChange={e=>setEditingOnboarding({...editingOnboarding, clientId:e.target.value})}>
+                               <option value="">Selecione a Empresa</option>
+                               {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                            <select className="p-2 border rounded" value={editingOnboarding.status} onChange={e=>setEditingOnboarding({...editingOnboarding, status:e.target.value as any})}>
+                               <option>Em Análise</option>
+                               <option>Aprovado</option>
+                               <option>Documentação Pendente</option>
+                               <option>Concluído</option>
+                            </select>
+                            <input placeholder="Link da Pasta de Documentos (Drive)" className="p-2 border rounded" value={editingOnboarding.docsUrl} onChange={e=>setEditingOnboarding({...editingOnboarding, docsUrl:e.target.value})} />
+                            <textarea placeholder="Notas internas..." className="p-2 border rounded col-span-2" value={editingOnboarding.notes} onChange={e=>setEditingOnboarding({...editingOnboarding, notes:e.target.value})} />
+                         </div>
+                         <div className="flex gap-2">
+                           <Button className="py-1 px-4 text-sm" onClick={saveOnboarding}>Salvar Processo</Button>
+                           <Button variant="outline" className="py-1 px-4 text-sm" onClick={() => setEditingOnboarding(null)}>Cancelar</Button>
+                         </div>
+                      </div>
+                   )}
+                   <table className="w-full text-left">
+                      <thead className="bg-gray-50 text-sm text-gray-600 uppercase">
+                         <tr><th className="p-4">Candidato</th><th className="p-4">Empresa</th><th className="p-4">Status</th><th className="p-4 text-right">Ações</th></tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                         {onboardings.map(proc => (
+                            <tr key={proc.id} className="hover:bg-gray-50">
+                               <td className="p-4 font-medium">{proc.candidateName}</td>
+                               <td className="p-4 text-gray-600">{proc.clientName}</td>
+                               <td className="p-4">
+                                  <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                     proc.status === 'Concluído' ? 'bg-green-100 text-green-700' :
+                                     proc.status === 'Aprovado' ? 'bg-blue-100 text-blue-700' :
+                                     proc.status === 'Documentação Pendente' ? 'bg-yellow-100 text-yellow-700' :
+                                     'bg-gray-100 text-gray-600'
+                                  }`}>{proc.status}</span>
+                               </td>
+                               <td className="p-4 text-right space-x-2">
+                                  <button onClick={() => setEditingOnboarding(proc)} className="text-blue-600 text-sm">Editar</button>
+                                  <button onClick={() => deleteOnboarding(proc.id)} className="text-red-600 text-sm">Excluir</button>
+                               </td>
+                            </tr>
+                         ))}
+                      </tbody>
+                   </table>
+                </div>
              )}
 
              {/* CANDIDATES TAB */}
@@ -1025,12 +1132,7 @@ const App: React.FC = () => {
                    <div className="p-6 border-b border-gray-100"><h2 className="font-bold text-lg">Banco de Talentos</h2></div>
                    <table className="w-full text-left">
                      <thead className="bg-gray-50 text-sm text-gray-600 uppercase">
-                       <tr>
-                         <th className="p-4">Nome</th>
-                         <th className="p-4">Cargo</th>
-                         <th className="p-4">Contato</th>
-                         <th className="p-4 text-right">Detalhes</th>
-                       </tr>
+                       <tr><th className="p-4">Nome</th><th className="p-4">Cargo</th><th className="p-4">Contato</th><th className="p-4 text-right">Detalhes</th></tr>
                      </thead>
                      <tbody className="divide-y divide-gray-100">
                        {candidates.length === 0 ? (
@@ -1078,17 +1180,6 @@ const App: React.FC = () => {
                      )}
                   </div>
                 </div>
-             )}
-             
-             {/* CLIENTS & ONBOARDING PLACEHOLDERS (Fully implementable with same pattern) */}
-             {(activeTab === 'clients' || activeTab === 'onboarding') && (
-               <div className="bg-white p-12 rounded-xl text-center shadow-sm border border-gray-100">
-                  <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
-                    <AlertTriangle size={32} />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">Em Breve</h3>
-                  <p className="text-gray-600">O módulo de {activeTab === 'clients' ? 'Clientes' : 'Admissão'} será habilitado na próxima atualização.</p>
-               </div>
              )}
 
           </main>
