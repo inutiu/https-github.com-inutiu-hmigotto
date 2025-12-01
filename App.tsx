@@ -86,6 +86,7 @@ const getErrorMessage = (error: any) => {
   if (error.code === 'auth/wrong-password') return 'Senha incorreta.';
   if (error.code === 'auth/invalid-api-key') return 'Erro de configuração da API Key.';
   if (error.code === 'auth/network-request-failed') return 'Erro de conexão. Verifique sua internet.';
+  if (error.code === 'auth/too-many-requests') return 'Muitas tentativas falhas. Tente novamente mais tarde.';
   return error.message;
 };
 
@@ -785,22 +786,8 @@ const App: React.FC = () => {
       await signInWithEmailAndPassword(auth, email, password);
       // View will change via onAuthStateChanged effect
     } catch (error: any) {
-      
-      // Auto-register Admin if not found (First time setup convenience)
-      if (error.code === 'auth/user-not-found' && email === 'admin@hevilin.com') {
-          const confirmCreate = window.confirm("Usuário Admin não encontrado no Firebase. Deseja criar esta conta de administrador agora?");
-          if (confirmCreate) {
-              try {
-                  await createUserWithEmailAndPassword(auth, email, password);
-                  alert("Conta de Administrador criada com sucesso! Você está logado.");
-                  return;
-              } catch (createError: any) {
-                  alert("Erro ao criar conta: " + getErrorMessage(createError));
-              }
-          }
-      } else {
-          alert(getErrorMessage(error));
-      }
+       // Standard error handling
+       alert(getErrorMessage(error));
     }
   };
 
@@ -857,7 +844,7 @@ const App: React.FC = () => {
             <form onSubmit={handleLogin} className="space-y-4">
                <div>
                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                 <input name="email" type="email" required className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-green outline-none" placeholder="admin@hevilin.com" />
+                 <input name="email" type="email" required className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-green outline-none" placeholder="adm@hmigotto.com" />
                </div>
                <div>
                  <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
@@ -870,9 +857,8 @@ const App: React.FC = () => {
             </div>
             
             <div className="mt-8 pt-6 border-t border-gray-100 text-xs text-gray-400 text-center">
-                <p>Credenciais sugeridas para primeiro acesso:</p>
-                <p>Email: admin@hevilin.com</p>
-                <p>Senha: admin</p>
+                <p>Use seu email e senha de administrador cadastrados no Firebase.</p>
+                <p>(Email sugerido: adm@hmigotto.com)</p>
             </div>
          </div>
        </div>
