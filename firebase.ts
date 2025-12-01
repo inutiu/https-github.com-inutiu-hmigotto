@@ -19,7 +19,7 @@ try {
   const app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
-  console.log("Firebase initialized successfully with provided credentials.");
+  console.log("Firebase initialized successfully with hardcoded credentials.");
 } catch (error) {
   console.error("Firebase initialization failed:", error);
   // Fallback to null, App.tsx will handle this as "Offline/Demo Mode"

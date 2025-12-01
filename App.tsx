@@ -3,7 +3,7 @@ import {
   Menu, X, Linkedin, Mail, ArrowRight, UserCheck, Search, Award, Briefcase, 
   MapPin, Clock, Upload, FileText, Lock, LayoutDashboard, 
   Users, Building, FileCheck, LogOut, Plus, Trash2, Link as LinkIcon, CheckCircle,
-  Sparkles, Copy, RefreshCw, Loader2, Phone, Eye, AlertTriangle
+  Sparkles, Copy, RefreshCw, Loader2, Phone, Eye, AlertTriangle, MessageSquare
 } from 'lucide-react';
 import { Logo } from './components/Logo';
 import { Button } from './components/Button';
@@ -70,6 +70,14 @@ interface OnboardingProcess {
   docsUrl?: string;
 }
 
+interface Message {
+  id: string;
+  name: string;
+  email: string;
+  message: string;
+  createdAt: any;
+}
+
 // --- HELPER: FIREBASE ERRORS ---
 const getErrorMessage = (error: any) => {
   if (error.code === 'auth/invalid-credential') return 'Email ou senha incorretos.';
@@ -100,6 +108,9 @@ const PublicSite = ({
   const [isLinkedInToolOpen, setIsLinkedInToolOpen] = useState(false);
   const [contactStatus, setContactStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
 
+  // Contact Form State
+  const [contactForm, setContactForm] = useState({ name: '', email: '', message: '' });
+
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
@@ -117,11 +128,29 @@ const PublicSite = ({
   const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setContactStatus('submitting');
-    // Simulate sending logic (or integrate with a backend function/email service)
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setContactStatus('success');
-    // Reset after a few seconds
-    setTimeout(() => setContactStatus('idle'), 5000);
+    
+    try {
+      if (db) {
+        await addDoc(collection(db, 'messages'), {
+          ...contactForm,
+          createdAt: serverTimestamp()
+        });
+      } else {
+        // Demo mode simulation
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        console.log("Demo Message Sent:", contactForm);
+      }
+      
+      setContactStatus('success');
+      setContactForm({ name: '', email: '', message: '' });
+      
+      // Reset after 5 seconds
+      setTimeout(() => setContactStatus('idle'), 5000);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      alert("Erro ao enviar mensagem. Tente novamente.");
+      setContactStatus('idle');
+    }
   };
 
   const NavLink = ({ href, children, mobile = false, onClick }: any) => (
@@ -582,9 +611,39 @@ const PublicSite = ({
                 ) : (
                   <>
                     <div className="grid grid-cols-1 gap-6">
-                      <div><label className="block text-sm font-medium text-gray-700 mb-2">Seu Nome</label><input type="text" required className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 outline-none" placeholder="João Silva" /></div>
-                      <div><label className="block text-sm font-medium text-gray-700 mb-2">Email</label><input type="email" required className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 outline-none" placeholder="joao@empresa.com" /></div>
-                      <div><label className="block text-sm font-medium text-gray-700 mb-2">Mensagem</label><textarea required rows={4} className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 outline-none" placeholder="Como posso ajudar?"></textarea></div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Seu Nome</label>
+                        <input 
+                          type="text" 
+                          required 
+                          className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 outline-none focus:ring-2 focus:ring-brand-green/20" 
+                          placeholder="João Silva"
+                          value={contactForm.name}
+                          onChange={e => setContactForm({...contactForm, name: e.target.value})}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                        <input 
+                          type="email" 
+                          required 
+                          className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 outline-none focus:ring-2 focus:ring-brand-green/20" 
+                          placeholder="joao@empresa.com" 
+                          value={contactForm.email}
+                          onChange={e => setContactForm({...contactForm, email: e.target.value})}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Mensagem</label>
+                        <textarea 
+                          required 
+                          rows={4} 
+                          className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 outline-none focus:ring-2 focus:ring-brand-green/20" 
+                          placeholder="Como posso ajudar?"
+                          value={contactForm.message}
+                          onChange={e => setContactForm({...contactForm, message: e.target.value})}
+                        ></textarea>
+                      </div>
                     </div>
                     <Button fullWidth type="submit" disabled={contactStatus === 'submitting'}>
                       {contactStatus === 'submitting' ? <Loader2 className="animate-spin mx-auto"/> : 'Enviar Mensagem'}
@@ -642,6 +701,7 @@ const App: React.FC = () => {
   // Admin States
   const [activeTab, setActiveTab] = useState('dashboard');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [clients, setClients] = useState<ClientCompany[]>([]);
   const [onboardings, setOnboardings] = useState<OnboardingProcess[]>([]);
 
@@ -691,13 +751,16 @@ const App: React.FC = () => {
       const unsubCandidates = onSnapshot(query(collection(db, 'candidates'), orderBy('createdAt', 'desc')), (snap) => {
         setCandidates(snap.docs.map(d => ({ id: d.id, ...d.data() } as Candidate)));
       });
+      const unsubMessages = onSnapshot(query(collection(db, 'messages'), orderBy('createdAt', 'desc')), (snap) => {
+        setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() } as Message)));
+      });
       const unsubClients = onSnapshot(collection(db, 'clients'), (snap) => {
         setClients(snap.docs.map(d => ({ id: d.id, ...d.data() } as ClientCompany)));
       });
       const unsubOnboardings = onSnapshot(collection(db, 'onboardings'), (snap) => {
         setOnboardings(snap.docs.map(d => ({ id: d.id, ...d.data() } as OnboardingProcess)));
       });
-      return () => { unsubCandidates(); unsubClients(); unsubOnboardings(); };
+      return () => { unsubCandidates(); unsubMessages(); unsubClients(); unsubOnboardings(); };
     }
   }, [user, view]);
 
@@ -798,6 +861,7 @@ const App: React.FC = () => {
        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
        { id: 'jobs', label: 'Vagas', icon: Briefcase },
        { id: 'candidates', label: 'Talentos', icon: Users },
+       { id: 'messages', label: 'Mensagens', icon: MessageSquare },
        { id: 'clients', label: 'Clientes', icon: Building },
        { id: 'onboarding', label: 'Admissão', icon: FileCheck },
      ];
@@ -832,7 +896,7 @@ const App: React.FC = () => {
 
              {/* DASHBOARD TAB */}
              {activeTab === 'dashboard' && (
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                     <div className="flex justify-between items-start mb-4">
                        <div className="bg-blue-100 p-3 rounded-lg"><Briefcase className="text-blue-600"/></div>
@@ -846,6 +910,13 @@ const App: React.FC = () => {
                        <span className="text-2xl font-bold">{candidates.length}</span>
                     </div>
                     <p className="text-gray-600">Talentos no Banco</p>
+                 </div>
+                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <div className="flex justify-between items-start mb-4">
+                       <div className="bg-green-100 p-3 rounded-lg"><MessageSquare className="text-green-600"/></div>
+                       <span className="text-2xl font-bold">{messages.length}</span>
+                    </div>
+                    <p className="text-gray-600">Mensagens Recebidas</p>
                  </div>
                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                     <div className="flex justify-between items-start mb-4">
@@ -972,6 +1043,31 @@ const App: React.FC = () => {
                    </table>
                  </div>
                </div>
+             )}
+
+             {/* MESSAGES TAB */}
+             {activeTab === 'messages' && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="p-6 border-b border-gray-100"><h2 className="font-bold text-lg">Mensagens Recebidas</h2></div>
+                  <div className="divide-y divide-gray-100">
+                     {messages.length === 0 ? (
+                        <div className="p-6 text-center text-gray-500">Nenhuma mensagem recebida ainda.</div>
+                     ) : (
+                        messages.map(m => (
+                           <div key={m.id} className="p-6 hover:bg-gray-50 transition">
+                              <div className="flex justify-between items-start mb-2">
+                                 <h4 className="font-bold text-gray-800">{m.name}</h4>
+                                 <span className="text-xs text-gray-400">
+                                   {m.createdAt?.seconds ? new Date(m.createdAt.seconds * 1000).toLocaleDateString() : 'Hoje'}
+                                 </span>
+                              </div>
+                              <p className="text-sm text-brand-green font-medium mb-2">{m.email}</p>
+                              <p className="text-gray-600 text-sm whitespace-pre-wrap">{m.message}</p>
+                           </div>
+                        ))
+                     )}
+                  </div>
+                </div>
              )}
              
              {/* CLIENTS & ONBOARDING PLACEHOLDERS (Fully implementable with same pattern) */}
