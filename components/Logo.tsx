@@ -13,7 +13,7 @@ export const Logo: React.FC<LogoProps> = ({ className = "h-12", variant = 'full'
       {/* Image Logo - Tries to load logo.jpg first */}
       {!imgError ? (
         <img 
-          src="/logo.jpeg" 
+          src="/logo.jpg" 
           alt="Logo H" 
           className="h-full w-auto object-contain"
           onError={() => setImgError(true)}
